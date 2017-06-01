@@ -1,0 +1,87 @@
+Uselsx "*LSXODBC"
+
+  '2005-1-20
+	'从10.82.1.25取数据
+	'自动发出邮件	
+	
+	Dim con As New odbcconnection
+	Dim query As New odbcquery
+	Dim query1 As New odbcquery
+	Dim result As New odbcresultset
+	Dim result1 As New odbcresultset
+	
+	Dim session As New Notessession
+	Dim thisDb As NotesDatabase
+	Dim mailboxDb As NotesDatabase
+	Dim mailDoc As NotesDocument
+	
+	Dim a,c(1 To 3) As String
+	Dim b As Integer
+	
+	status = con.connectto ("PallERP","sun","sunsys")
+	Set query.connection=con
+	Set result.query = query
+	Set query1.connection=con
+	Set result1.query = query1
+	
+	Set thisDB=session.currentdatabase	
+	Set mailboxDB=session.getdatabase(thisDB.server,"mail.box")
+	
+	query.sql="select *, user_.name, user_.notesaddress from news " _
+	& "join user_ on news.readman=user_.usercode " _
+	& "where (user_.notesaddress > '' AND newsID >719025 and status = 'Yes' AND user_.securitylevel='15')"
+	Call result.execute
+	
+	result.LastRow
+	B= result.NumRows
+	result.firstrow
+	
+	For i=1 To b
+		Print result.getvalue("newsid") & " " & i & " " & result.GetValue("NotesAddress")
+		'Print result.getvalue("writeman")
+		'Print result.getvalue("newsitem")
+		'Print result.getvalue("news")
+		'Print result.getvalue("notesaddress")
+		'Print result.getvalue("status")
+		'result.NextRow
+		
+		Set maildoc = mailboxDB.createdocument
+		maildoc.Form = "Memo"
+		maildoc.SendTo = result.GetValue("NotesAddress")
+		c(1)=result.GetValue("NotesAddress")
+		c(2)="Eddie Jun Zhang/Beijing/Pall"
+		maildoc.Recipients = c 
+		maildoc.CopyTo="Eddie Jun Zhang/Beijing/Pall"
+		maildoc.From = "Pall China ERP"
+		maildoc.posteddate = Now()
+		maildoc.Subject = "ERP: "& result.getvalue("newsitem")
+		
+		If Not Trim(result.getvalue("news"))="" Then
+			a="说明: " &  result.getvalue("news")
+		Else
+			a="没有说明"
+		End If
+		
+		maildoc.body="" _
+		& a & Chr(13) _
+		& "-----------------------------------" & Chr(13) _
+		& "此邮件由ERP系统自动发出，目前MEG部门的用户可以收到此提示邮件。如有疑问，请与张骏或贾维聪联系。" & Chr(13) _
+		& result.getvalue("newsid") & Chr(13) _
+		& result.getvalue("date") & Chr(13) 
+		'& "readman: " & result.getvalue("readman") & Chr(13) _
+		'& "receiver: " & result.getvalue("name") & Chr(13) _
+		Call maildoc.save(True,True)
+		
+		a=result.getvalue("newsid") 
+		query1.sql="UPDATE news SET news.status = 'No' WHERE ((news.newsID)=" & a & ")"
+		Call result1.execute
+		
+		result1.Close(DB_CLOSE)
+		
+		result.NextRow
+		
+	Next i
+	result.Close(DB_CLOSE)
+	con.disconnect
+	
+	Print "Have sent " & b & " Mails."
