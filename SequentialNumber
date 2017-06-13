@@ -1,0 +1,79 @@
+Function SequentialNumber&(Byval CounterName$,Byval CounterToSave%)
+	On Error Goto SequentialNumberError
+	
+	Dim CounterFieldName$
+	Dim session As New notessession
+	Dim db As notesdatabase
+	Dim view As notesview
+	Dim doc As notesdocument
+	Dim docNext As notesdocument
+	Dim CounterValue&
+	Dim FieldValue As Variant
+	Dim Ret%
+	Dim item As notesitem
+	Dim FolderToBeCreated%
+	
+	CounterFieldName$="MB"+CounterName$
+	Set db=session.CurrentDatabase
+	Set view=db.GetView(COUNTER_FOLDER_FORM_NAME$)
+	If VIEW Is Nothing Then
+		FolderToBeCreated%=True
+	End If
+	
+	Do
+		If Not FolderToBeCreated% Then
+			view.refresh
+			Set doc=Nothing
+			Set doc=view.GetFirstDocument()
+		End If
+		If doc Is Nothing Or FolderToBeCreated% Then
+			Set doc=New notesDocument(db)
+			doc.Form=COUNTER_FOLDER_FORM_NAME$
+			Call doc.Save(True,False)
+			doc.putinfolder COUNTER_FOLDER_FORM_NAME$
+			If FolderToBecreated% Then
+				Set view=db.getView(COUNTER_FOLDER_FORM_NAME$)
+				FolderToBeCreated%=False
+			End If
+		Else
+			Set item=doc.GetFirstItem(CounterFieldName$)
+			If item Is Nothing Then
+				Call doc.ReplaceitemValue(CounterFieldName$,0)
+				Call doc.Save(False,False)
+			Else
+				FieldValue=doc.GetItemValue(CounterFieldName$)
+				If Not CounterToSave% Then
+					CounterValue&=FieldValue(0)+1
+					Exit Do
+				Else
+					Call doc.replaceitemvalue(CounterFieldName$,_
+					FieldValue(0)+1)
+					Ret%=doc.Save(False,False)
+					If Ret% Then
+						CounterValue&=FieldValue(0)+1
+						Exit Do
+					End If
+				End If
+			End If
+		End If
+	Loop
+	'如果发现多个序列号文档，只保留第一个（这种情况可能由于意外
+	'造成，正常情况下不太可能出现）
+	Set doc=view.GetNextDocument(doc)
+	Do While Not doc Is Nothing
+		Set docNext=view.GetNextDocument(doc)
+		Call doc.Remove(True)
+		Set doc=docNext
+	Loop
+	
+	SequentialNumber&=CounterValue&
+	
+SequentialNumberExit:
+	Exit Function
+	
+SequentialNumberError:
+	Msgbox "序列号",Err,Error$
+	SequentialNumber&=-1
+	Goto SequentialNumberExit
+	
+End Function
